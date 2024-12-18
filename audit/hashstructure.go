@@ -217,14 +217,15 @@ type hashWalker struct {
 	// Enter appends to loc and exit pops loc. The last element of loc is thus
 	// the current location.
 	loc []reflectwalk.Location
-	// Map and Slice append to cs, Exit pops the last element off cs.
+	// Map, Struct and Slice append to cs, Exit pops the last element off cs.
 	// The last element in cs is the most recently entered map or slice.
 	cs []reflect.Value
-	// MapElem and SliceElem append to csKey. The last element in csKey is the
-	// most recently entered map key or slice index. Since Exit pops the last
+	// MapElem, StructField and SliceElem append to csKey. The last element in csKey is the
+	// most recently entered key or slice index. Since Exit pops the last
 	// element of csKey, only nesting to another structure increases the size of
 	// this slice.
-	csKey []reflect.Value
+	csKey  []reflect.Value
+	newMap reflect.Value
 }
 
 // hashTimeType stores a pre-computed reflect.Type for a time.Time so
@@ -245,6 +246,11 @@ func (w *hashWalker) Exit(loc reflectwalk.Location) error {
 	case reflectwalk.Map:
 		w.cs = w.cs[:len(w.cs)-1]
 	case reflectwalk.MapValue:
+		w.key = w.key[:len(w.key)-1]
+		w.csKey = w.csKey[:len(w.csKey)-1]
+	case reflectwalk.Struct:
+		w.cs = w.cs[:len(w.cs)-1]
+	case reflectwalk.StructField:
 		w.key = w.key[:len(w.key)-1]
 		w.csKey = w.csKey[:len(w.csKey)-1]
 	case reflectwalk.Slice:
@@ -281,6 +287,7 @@ func (w *hashWalker) SliceElem(i int, elem reflect.Value) error {
 func (w *hashWalker) Struct(v reflect.Value) error {
 	// We are looking for time values. If it isn't one, ignore it.
 	if v.Type() != hashTimeType {
+		w.cs = append(w.cs, v)
 		return nil
 	}
 
@@ -301,7 +308,7 @@ func (w *hashWalker) Struct(v reflect.Value) error {
 		strVal := v.Interface().(time.Time).Format(time.RFC3339Nano)
 
 		// Set the map value to the string instead of the time.Time object
-		m := w.cs[len(w.cs)-1]
+		m := getValue()
 		mk := w.csKey[len(w.cs)-1]
 		m.SetMapIndex(mk, reflect.ValueOf(strVal))
 	case reflectwalk.SliceElem:
@@ -311,16 +318,19 @@ func (w *hashWalker) Struct(v reflect.Value) error {
 		strVal := v.Interface().(time.Time).Format(time.RFC3339Nano)
 
 		// Set the map value to the string instead of the time.Time object
-		s := w.cs[len(w.cs)-1]
+		s := getValue()
 		si := int(w.csKey[len(w.cs)-1].Int())
 		s.Slice(si, si+1).Index(0).Set(reflect.ValueOf(strVal))
 	}
 
 	// Skip this entry so that we don't walk the struct.
+	w.cs = append(w.cs, v)
 	return reflectwalk.SkipEntry
 }
 
-func (w *hashWalker) StructField(reflect.StructField, reflect.Value) error {
+func (w *hashWalker) StructField(s reflect.StructField, v reflect.Value) error {
+	w.csKey = append(w.csKey, v)
+	w.key = append(w.key, v.String())
 	return nil
 }
 
@@ -359,17 +369,44 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 	case reflectwalk.MapValue:
 		// If we're in a map, then the only way to set a map value is
 		// to set it directly.
-		m := w.cs[len(w.cs)-1]
+		m := getValue()
 		mk := w.csKey[len(w.cs)-1]
 		m.SetMapIndex(mk, resultVal)
 	case reflectwalk.SliceElem:
-		s := w.cs[len(w.cs)-1]
+		s := getValue()
 		si := int(w.csKey[len(w.cs)-1].Int())
 		s.Slice(si, si+1).Index(0).Set(resultVal)
+	case reflectwalk.StructField:
+		m := getValue()
+		mk := w.csKey[len(w.cs)-1]
+		m.SetMapIndex(mk, resultVal)
 	default:
-		// Otherwise, we should be addressable
-		setV.Set(resultVal)
+		panic("Found unsupported value.")
 	}
 
 	return nil
+
+}
+
+func (w *hashWalker) getValue() reflect.Value {
+	size := len(cs)
+	currentValue := cs[0]
+	newStruct := w.newMap
+	for i := 1; i < size; i++ {
+		if i%2 == 0 {
+			currentValue = cs[i]
+		} else {
+			switch w.loc[i] {
+			case reflectwalk.MapElem:
+				newStruct = newStruct.MapIndex(currentValue.MapIndex(cs[i]))
+			case reflectwalk.SliceElem:
+				newStruct = newStruct.SliceIndex(currentValue.SliceIndex(cs[i]))
+			case reflectwalk.StructField:
+				newStruct = newStruct.MapIndex(currentValue.FieldByName(cs[i]))
+			default:
+				panic("invalid location")
+			}
+		}
+	}
+	return newStruct
 }
