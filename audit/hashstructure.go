@@ -584,7 +584,7 @@ func (w *hashWalkerWithOrig) Primitive(v reflect.Value) error {
 func (w *hashWalkerWithOrig) getValue() reflect.Value {
 	size := len(w.cs)
 	newStruct := w.NewMap
-	for i := 0; i < size; i++ {
+	for i := 0; i < size-1; i++ {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
 			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
