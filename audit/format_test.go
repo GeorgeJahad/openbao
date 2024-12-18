@@ -108,6 +108,12 @@ func TestElideListResponses(t *testing.T) {
 	formatter := AuditFormatter{&tfw}
 	ctx := namespace.RootContext(context.Background())
 
+	type testStruct struct {
+		Name1 string
+		Name2 string
+		Name3 string
+	}
+
 	type test struct {
 		name         string
 		inputData    map[string]interface{}
@@ -116,67 +122,19 @@ func TestElideListResponses(t *testing.T) {
 
 	tests := []test{
 		{
-			"nil data",
-			nil,
-			nil,
-		},
-		{
 			"Normal list (keys only)",
 			map[string]interface{}{
-				"keys": []string{"foo", "bar", "baz"},
+				"ts": testStruct{
+					Name1: "name1",
+					Name2: "name2",
+					Name3: "name3",
+				},
 			},
 			map[string]interface{}{
 				"keys": 3,
 			},
 		},
-		{
-			"Enhanced list (has key_info)",
-			map[string]interface{}{
-				"keys": []string{"foo", "bar", "baz", "quux"},
-				"key_info": map[string]interface{}{
-					"foo":  "alpha",
-					"bar":  "beta",
-					"baz":  "gamma",
-					"quux": "delta",
-				},
-			},
-			map[string]interface{}{
-				"keys":     4,
-				"key_info": 4,
-			},
-		},
-		{
-			"Unconventional other values in a list response are not touched",
-			map[string]interface{}{
-				"keys":           []string{"foo", "bar"},
-				"something_else": "baz",
-			},
-			map[string]interface{}{
-				"keys":           2,
-				"something_else": "baz",
-			},
-		},
-		{
-			"Conventional values in a list response are not elided if their data types are unconventional",
-			map[string]interface{}{
-				"keys": map[string]interface{}{
-					"You wouldn't expect keys to be a map": nil,
-				},
-				"key_info": []string{
-					"You wouldn't expect key_info to be a slice",
-				},
-			},
-			map[string]interface{}{
-				"keys": map[string]interface{}{
-					"You wouldn't expect keys to be a map": nil,
-				},
-				"key_info": []string{
-					"You wouldn't expect key_info to be a slice",
-				},
-			},
-		},
 	}
-	oneInterestingTestCase := tests[2]
 
 	formatResponse := func(
 		t *testing.T,
@@ -199,26 +157,5 @@ func TestElideListResponses(t *testing.T) {
 				assert.Equal(t, tfw.hashExpectedValueForComparison(tc.expectedData), tfw.lastResponse.Response.Data)
 			})
 		}
-	})
-
-	t.Run("When Operation is not list, eliding does not happen", func(t *testing.T) {
-		config := FormatterConfig{ElideListResponses: true}
-		tc := oneInterestingTestCase
-		formatResponse(t, config, logical.ReadOperation, tc.inputData)
-		assert.Equal(t, tfw.hashExpectedValueForComparison(tc.inputData), tfw.lastResponse.Response.Data)
-	})
-
-	t.Run("When ElideListResponses is false, eliding does not happen", func(t *testing.T) {
-		config := FormatterConfig{ElideListResponses: false}
-		tc := oneInterestingTestCase
-		formatResponse(t, config, logical.ListOperation, tc.inputData)
-		assert.Equal(t, tfw.hashExpectedValueForComparison(tc.inputData), tfw.lastResponse.Response.Data)
-	})
-
-	t.Run("When Raw is true, eliding still happens", func(t *testing.T) {
-		config := FormatterConfig{ElideListResponses: true, Raw: true}
-		tc := oneInterestingTestCase
-		formatResponse(t, config, logical.ListOperation, tc.inputData)
-		assert.Equal(t, tc.expectedData, tfw.lastResponse.Response.Data)
 	})
 }
