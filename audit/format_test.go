@@ -125,9 +125,9 @@ func TestElideListResponses(t *testing.T) {
 			"Normal list (keys only)",
 			map[string]interface{}{
 				"ts": testStruct{
-					Name1: "name1",
-					Name2: "name2",
-					Name3: "name3",
+					Name1: "name111",
+					Name2: "name222",
+					Name3: "name333",
 				},
 			},
 			map[string]interface{}{
