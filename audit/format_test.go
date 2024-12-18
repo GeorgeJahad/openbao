@@ -131,7 +131,11 @@ func TestElideListResponses(t *testing.T) {
 				},
 			},
 			map[string]interface{}{
-				"keys": 3,
+				"ts": map[string]interface{}{
+					"Name1": "name111x",
+					"Name2": "name222x",
+					"Name3": "name333x",
+				},
 			},
 		},
 	}
