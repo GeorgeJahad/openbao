@@ -145,7 +145,7 @@ func HashResponse(
 			doElideListResponseDataWithCopy(resp.Data, mapCopy)
 		}
 
-		err = hashMapWithOrig(fn, resp.Data, mapCopy, nonHMACDataKeys)
+		err = hashMapWithOrig(fn, resp.Data, mapCopy, nonHMACDataKeys, elideListResponseData)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +386,7 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 	return nil
 }
 
-func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string) error {
+func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
 	// for k, v := range origData {
 	// 	if o, ok := v.(logical.OptMarshaler); ok {
 	// 		marshaled, err := o.MarshalJSONWithOptions(&logical.MarshalOptions{
@@ -399,15 +399,15 @@ func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, da
 	// 	}
 	// }
 
-	return HashStructureWithOrig(origData, data, fn, nonHMACDataKeys)
+	return HashStructureWithOrig(origData, data, fn, nonHMACDataKeys, elideListResponseData)
 }
 
 // HashStructure takes an interface and hashes all the values within
 // the structure. Only _values_ are hashed: keys of objects are not.
 //
 // For the HashCallback, see the built-in HashCallbacks below.
-func HashStructureWithOrig(o interface{}, s interface{}, cb HashCallback, ignoredKeys []string) error {
-	walker := &hashWalkerWithOrig{NewMap: reflect.ValueOf(s), Callback: cb, IgnoredKeys: ignoredKeys}
+func HashStructureWithOrig(o interface{}, s interface{}, cb HashCallback, ignoredKeys []string, elideListResponseData bool) error {
+	walker := &hashWalkerWithOrig{NewMap: reflect.ValueOf(s), Callback: cb, IgnoredKeys: ignoredKeys, ElideListResponseData: elideListResponseData}
 	return reflectwalk.Walk(o, walker)
 }
 
@@ -437,8 +437,9 @@ type hashWalkerWithOrig struct {
 	// most recently entered key or slice index. Since Exit pops the last
 	// element of csKey, only nesting to another structure increases the size of
 	// this slice.
-	csKey  []reflect.Value
-	NewMap reflect.Value
+	csKey                 []reflect.Value
+	NewMap                reflect.Value
+	ElideListResponseData bool
 }
 
 func (w *hashWalkerWithOrig) Enter(loc reflectwalk.Location) error {
@@ -574,7 +575,7 @@ func (w *hashWalkerWithOrig) Primitive(v reflect.Value) error {
 		return nil
 	}
 
-	if w.elided(currentKey, v) {
+	if w.elided() {
 		return nil
 	}
 
@@ -623,14 +624,46 @@ func (w *hashWalkerWithOrig) getValue() reflect.Value {
 	return newStruct
 }
 
-func (w *hashWalkerWithOrig) elided(k string, v reflect.Value) bool {
-	_, vOk := v.Interface().([]string)
-	if vOk && k == "keys" {
-		return true
+func (w *hashWalkerWithOrig) elided() bool {
+	if !w.ElideListResponseData {
+		return false
 	}
-	_, vOk = v.Interface().(map[string]interface{})
-	if vOk && k == "key_info" {
-		return true
+
+	currentLoc := len(w.loc) - 1
+	currentCs := len(w.cs) - 1
+	currentCsKey := len(w.csKey) - 1
+
+	if currentLoc <= 3 {
+		return false
 	}
+
+	if w.loc[currentLoc-3] != reflectwalk.Map ||
+		w.loc[currentLoc-2] != reflectwalk.MapValue {
+		return false
+	}
+
+	m := w.cs[currentCs-1]
+	mk := w.csKey[currentCsKey-1]
+	k := mk.String()
+	v := m.MapIndex(mk)
+
+	if w.loc[currentLoc-1] == reflectwalk.Slice &&
+		w.loc[currentLoc] == reflectwalk.SliceElem &&
+		k == "keys" {
+		_, vOk := v.Interface().([]string)
+		if vOk {
+			return true
+		}
+	}
+
+	if w.loc[currentLoc-1] == reflectwalk.Map &&
+		w.loc[currentLoc] == reflectwalk.MapValue &&
+		k == "key_info" {
+		_, vOk := v.Interface().(map[string]interface{})
+		if vOk {
+			return true
+		}
+	}
+
 	return false
 }
