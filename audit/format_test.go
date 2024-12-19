@@ -148,7 +148,7 @@ func TestElideListResponses(t *testing.T) {
 		{
 			"Unconventional other values in a list response are not touched",
 			map[string]interface{}{
-				"keys":           []interface{}{"foo", "bar"},
+				"keys":           []string{"foo", "bar"},
 				"something_else": "baz",
 			},
 			map[string]interface{}{
@@ -162,7 +162,7 @@ func TestElideListResponses(t *testing.T) {
 				"keys": map[string]interface{}{
 					"You wouldn't expect keys to be a map": nil,
 				},
-				"key_info": []interface{}{
+				"key_info": []string{
 					"You wouldn't expect key_info to be a slice",
 				},
 			},
@@ -202,17 +202,36 @@ func TestElideListResponses(t *testing.T) {
 	})
 
 	t.Run("When Operation is not list, eliding does not happen", func(t *testing.T) {
+		expectedData := map[string]interface{}{
+			"keys": []interface{}{"foo", "bar", "baz", "quux"},
+			"key_info": map[string]interface{}{
+				"foo":  "alpha",
+				"bar":  "beta",
+				"baz":  "gamma",
+				"quux": "delta",
+			},
+		}
+
 		config := FormatterConfig{ElideListResponses: true}
 		tc := oneInterestingTestCase
 		formatResponse(t, config, logical.ReadOperation, tc.inputData)
-		assert.Equal(t, tfw.hashExpectedValueForComparison(tc.inputData), tfw.lastResponse.Response.Data)
+		assert.Equal(t, tfw.hashExpectedValueForComparison(expectedData), tfw.lastResponse.Response.Data)
 	})
 
 	t.Run("When ElideListResponses is false, eliding does not happen", func(t *testing.T) {
+		expectedData := map[string]interface{}{
+			"keys": []interface{}{"foo", "bar", "baz", "quux"},
+			"key_info": map[string]interface{}{
+				"foo":  "alpha",
+				"bar":  "beta",
+				"baz":  "gamma",
+				"quux": "delta",
+			},
+		}
 		config := FormatterConfig{ElideListResponses: false}
 		tc := oneInterestingTestCase
 		formatResponse(t, config, logical.ListOperation, tc.inputData)
-		assert.Equal(t, tfw.hashExpectedValueForComparison(tc.inputData), tfw.lastResponse.Response.Data)
+		assert.Equal(t, tfw.hashExpectedValueForComparison(expectedData), tfw.lastResponse.Response.Data)
 	})
 
 	t.Run("When Raw is true, eliding still happens", func(t *testing.T) {
