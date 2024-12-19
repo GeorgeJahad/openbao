@@ -387,6 +387,18 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 }
 
 func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string) error {
+	// for k, v := range origData {
+	// 	if o, ok := v.(logical.OptMarshaler); ok {
+	// 		marshaled, err := o.MarshalJSONWithOptions(&logical.MarshalOptions{
+	// 			ValueHasher: fn,
+	// 		})
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		data[k] = json.RawMessage(marshaled)
+	// 	}
+	// }
+
 	return HashStructureWithOrig(origData, data, fn, nonHMACDataKeys)
 }
 
@@ -524,8 +536,15 @@ func (w *hashWalkerWithOrig) Struct(v reflect.Value) error {
 }
 
 func (w *hashWalkerWithOrig) StructField(s reflect.StructField, v reflect.Value) error {
-	w.csKey = append(w.csKey, reflect.ValueOf(s.Name))
-	w.key = append(w.key, s.Name)
+	name := s.Name
+	if tag := s.Tag.Get("json"); tag != "" {
+		name = tag
+	}
+	w.csKey = append(w.csKey, reflect.ValueOf(name))
+	w.key = append(w.key, name)
+	if !s.IsExported() {
+		return reflectwalk.SkipEntry
+	}
 	return nil
 }
 
@@ -552,6 +571,10 @@ func (w *hashWalkerWithOrig) Primitive(v reflect.Value) error {
 	// See if the current key is part of the ignored keys
 	currentKey := w.key[len(w.key)-1]
 	if strutil.StrListContains(w.IgnoredKeys, currentKey) {
+		return nil
+	}
+
+	if w.elided(currentKey, v) {
 		return nil
 	}
 
@@ -598,4 +621,16 @@ func (w *hashWalkerWithOrig) getValue() reflect.Value {
 		}
 	}
 	return newStruct
+}
+
+func (w *hashWalkerWithOrig) elided(k string, v reflect.Value) bool {
+	_, vOk := v.Interface().([]string)
+	if vOk && k == "keys" {
+		return true
+	}
+	_, vOk = v.Interface().(map[string]interface{})
+	if vOk && k == "key_info" {
+		return true
+	}
+	return false
 }
