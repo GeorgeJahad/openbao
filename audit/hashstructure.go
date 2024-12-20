@@ -537,15 +537,15 @@ func (w *hashWalkerWithOrig) Struct(v reflect.Value) error {
 }
 
 func (w *hashWalkerWithOrig) StructField(s reflect.StructField, v reflect.Value) error {
+	if !s.IsExported() {
+		return reflectwalk.SkipEntry
+	}
 	name := s.Name
 	if tag := s.Tag.Get("json"); tag != "" {
 		name = tag
 	}
 	w.csKey = append(w.csKey, reflect.ValueOf(name))
 	w.key = append(w.key, name)
-	if !s.IsExported() {
-		return reflectwalk.SkipEntry
-	}
 	return nil
 }
 
