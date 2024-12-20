@@ -4,9 +4,14 @@
 package audit
 
 import (
+	"fmt"
+)
+import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-secure-stdlib/strutil"
@@ -476,10 +481,19 @@ func (w *hashWalkerWithOrig) Map(m reflect.Value) error {
 }
 
 func (w *hashWalkerWithOrig) MapElem(m, k, v reflect.Value) error {
-	w.csKey = append(w.csKey, k)
-	w.key = append(w.key, k.String())
 	w.lastValue = v
-	return nil
+	if _, ok := k.Interface().(string); ok {
+		w.csKey = append(w.csKey, k)
+		w.key = append(w.key, k.String())
+		return nil
+	}
+	if _, ok := k.Interface().(int); ok {
+		kString := strconv.FormatInt(k.Int(), 10)
+		w.csKey = append(w.csKey, reflect.ValueOf(kString))
+		w.key = append(w.key, kString)
+		return nil
+	}
+	panic("bad type")
 }
 
 func (w *hashWalkerWithOrig) Slice(s reflect.Value) error {
@@ -542,7 +556,10 @@ func (w *hashWalkerWithOrig) StructField(s reflect.StructField, v reflect.Value)
 	}
 	name := s.Name
 	if tag := s.Tag.Get("json"); tag != "" {
-		name = tag
+		parts := strings.Split(tag, ",")
+		if parts[0] != "" {
+			name = parts[0]
+		}
 	}
 	w.csKey = append(w.csKey, reflect.ValueOf(name))
 	w.key = append(w.key, name)
@@ -611,11 +628,17 @@ func (w *hashWalkerWithOrig) getValue() reflect.Value {
 	for i := 0; i < size-1; i++ {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
+			if _, ok := w.csKey[i].Interface().(int); ok {
+				gbjBp()
+			}
 			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
 		case reflectwalk.SliceElem:
 			index := w.csKey[i].Int()
 			newStruct = newStruct.Index(int(index)).Elem()
 		case reflectwalk.StructField:
+			if !newStruct.MapIndex(w.csKey[i]).IsValid() {
+				gbjBp()
+			}
 			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
 		default:
 			panic("invalid location")
@@ -666,4 +689,8 @@ func (w *hashWalkerWithOrig) elided() bool {
 	}
 
 	return false
+}
+
+func gbjBp() {
+	fmt.Println("gbj1")
 }
