@@ -8,7 +8,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/mitchellh/copystructure"
 	"github.com/openbao/openbao/helper/namespace"
 	"github.com/openbao/openbao/sdk/v2/helper/salt"
 	"github.com/openbao/openbao/sdk/v2/logical"
@@ -48,7 +47,7 @@ func (fw *testingFormatWriter) Salt(ctx context.Context) (*salt.Salt, error) {
 // so that we can use assert.Equal to compare the expected and output values.
 func (fw *testingFormatWriter) hashExpectedValueForComparison(input map[string]interface{}) map[string]interface{} {
 	// Copy input before modifying, since we may re-use the same data in another test
-	copied, err := copystructure.Copy(input)
+	copied, err := getUnmarshaledCopy(input)
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +58,7 @@ func (fw *testingFormatWriter) hashExpectedValueForComparison(input map[string]i
 		panic(err)
 	}
 
-	err = hashMap(salter.GetIdentifiedHMAC, copiedAsMap, nil)
+	err = hashMapWithOrig(salter.GetIdentifiedHMAC, input, copiedAsMap, nil, false)
 	if err != nil {
 		panic(err)
 	}
