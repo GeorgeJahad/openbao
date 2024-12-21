@@ -333,9 +333,10 @@ func TestHashWalker(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		err := HashStructure(tc.Input, func(string) string {
+		copy, _ := getUnmarshaledCopy(tc.Input)
+		err := HashStructureWithOrig(tc.Input, copy, func(string) string {
 			return replaceText
-		}, nil)
+		}, nil, false)
 		if err != nil {
 			t.Fatalf("err: %s\n\n%#v", err, tc.Input)
 		}
@@ -387,9 +388,10 @@ func TestHashWalker_TimeStructs(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		err := HashStructure(tc.Input, func(s string) string {
+		copy, _ := getUnmarshaledCopy(tc.Input)
+		err := HashStructureWithOrig(tc.Input, copy, func(s string) string {
 			return s + replaceText
-		}, nil)
+		}, nil, false)
 		if err != nil {
 			t.Fatalf("err: %v\n\n%#v", err, tc.Input)
 		}
