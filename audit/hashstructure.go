@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-secure-stdlib/strutil"
-	"github.com/mitchellh/copystructure"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/openbao/openbao/sdk/v2/helper/salt"
 	"github.com/openbao/openbao/sdk/v2/helper/wrapping"
@@ -55,7 +54,7 @@ func HashRequest(salter *salt.Salt, in *logical.Request, HMACAccessor bool, nonH
 	req := *in
 
 	if req.Auth != nil {
-		cp, err := copystructure.Copy(req.Auth)
+		cp, err := getUnmarshaledCopy(req.Auth)
 		if err != nil {
 			return nil, err
 		}
@@ -74,12 +73,12 @@ func HashRequest(salter *salt.Salt, in *logical.Request, HMACAccessor bool, nonH
 	}
 
 	if req.Data != nil {
-		copy, err := copystructure.Copy(req.Data)
+		copy, err := getUnmarshaledCopy(req.Data)
 		if err != nil {
 			return nil, err
 		}
 
-		err = hashMap(fn, copy.(map[string]interface{}), nonHMACDataKeys)
+		err = hashMapWithOrig(fn, req.Data, copy.(map[string]interface{}), nonHMACDataKeys, false)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +120,7 @@ func HashResponse(
 	resp := *in
 
 	if resp.Auth != nil {
-		cp, err := copystructure.Copy(resp.Auth)
+		cp, err := getUnmarshaledCopy(resp.Auth)
 		if err != nil {
 			return nil, err
 		}
