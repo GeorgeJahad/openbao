@@ -125,7 +125,7 @@ func TestElideListResponses(t *testing.T) {
 				"keys": []string{"foo", "bar", "baz"},
 			},
 			map[string]interface{}{
-				"keys": 3,
+				"keys": float64(3),
 			},
 		},
 		{
@@ -140,8 +140,8 @@ func TestElideListResponses(t *testing.T) {
 				},
 			},
 			map[string]interface{}{
-				"keys":     4,
-				"key_info": 4,
+				"keys":     float64(4),
+				"key_info": float64(4),
 			},
 		},
 		{
