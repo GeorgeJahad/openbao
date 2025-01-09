@@ -79,7 +79,7 @@ func HashRequest(salter *salt.Salt, in *logical.Request, HMACAccessor bool, nonH
 			return nil, err
 		}
 
-		err = hashMapWithOrig(fn, req.Data, copy.(map[string]interface{}), nonHMACDataKeys, false)
+		err = hashMap(fn, req.Data, copy.(map[string]interface{}), nonHMACDataKeys, false)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func HashResponse(
 			doElideListResponseDataWithCopy(resp.Data, mapCopy)
 		}
 
-		err = hashMapWithOrig(fn, resp.Data, mapCopy, nonHMACDataKeys, elideListResponseData)
+		err = hashMap(fn, resp.Data, mapCopy, nonHMACDataKeys, elideListResponseData)
 		if err != nil {
 			return nil, err
 		}
@@ -196,23 +196,23 @@ type HashCallback func(string) string
 // Now() or Unix().
 var hashTimeType = reflect.TypeOf(time.Time{})
 
-func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
-	return HashStructureWithOrig(origData, data, fn, nonHMACDataKeys, elideListResponseData)
+func hashMap(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
+	return HashStructure(origData, data, fn, nonHMACDataKeys, elideListResponseData)
 }
 
 // HashStructure takes an interface and hashes all the values within
 // the structure. Only _values_ are hashed: keys of objects are not.
 //
 // For the HashCallback, see the built-in HashCallbacks below.
-func HashStructureWithOrig(o interface{}, s interface{}, cb HashCallback, ignoredKeys []string, elideListResponseData bool) error {
-	walker := &hashWalkerWithOrig{NewMap: reflect.ValueOf(s), Callback: cb, IgnoredKeys: ignoredKeys, ElideListResponseData: elideListResponseData}
+func HashStructure(o interface{}, s interface{}, cb HashCallback, ignoredKeys []string, elideListResponseData bool) error {
+	walker := &hashWalker{NewMap: reflect.ValueOf(s), Callback: cb, IgnoredKeys: ignoredKeys, ElideListResponseData: elideListResponseData}
 	return reflectwalk.Walk(o, walker)
 }
 
 // hashWalker implements interfaces for the reflectwalk package
 // (github.com/mitchellh/reflectwalk) that can be used to automatically
 // replace primitives with a hashed value.
-type hashWalkerWithOrig struct {
+type hashWalker struct {
 	// Callback is the function to call with the primitive that is
 	// to be hashed. If there is an error, walking will be halted
 	// immediately and the error returned.
@@ -240,12 +240,12 @@ type hashWalkerWithOrig struct {
 	ElideListResponseData bool
 }
 
-func (w *hashWalkerWithOrig) Enter(loc reflectwalk.Location) error {
+func (w *hashWalker) Enter(loc reflectwalk.Location) error {
 	w.loc = append(w.loc, loc)
 	return nil
 }
 
-func (w *hashWalkerWithOrig) Exit(loc reflectwalk.Location) error {
+func (w *hashWalker) Exit(loc reflectwalk.Location) error {
 	w.loc = w.loc[:len(w.loc)-1]
 
 	switch loc {
@@ -268,12 +268,12 @@ func (w *hashWalkerWithOrig) Exit(loc reflectwalk.Location) error {
 	return nil
 }
 
-func (w *hashWalkerWithOrig) Map(m reflect.Value) error {
+func (w *hashWalker) Map(m reflect.Value) error {
 	w.cs = append(w.cs, m)
 	return nil
 }
 
-func (w *hashWalkerWithOrig) MapElem(m, k, v reflect.Value) error {
+func (w *hashWalker) MapElem(m, k, v reflect.Value) error {
 	w.lastValue = v
 	if _, ok := k.Interface().(string); ok {
 		w.csKey = append(w.csKey, k)
@@ -294,17 +294,17 @@ func (w *hashWalkerWithOrig) MapElem(m, k, v reflect.Value) error {
 	panic("bad type" + k.String())
 }
 
-func (w *hashWalkerWithOrig) Slice(s reflect.Value) error {
+func (w *hashWalker) Slice(s reflect.Value) error {
 	w.cs = append(w.cs, s)
 	return nil
 }
 
-func (w *hashWalkerWithOrig) SliceElem(i int, elem reflect.Value) error {
+func (w *hashWalker) SliceElem(i int, elem reflect.Value) error {
 	w.csKey = append(w.csKey, reflect.ValueOf(i))
 	return nil
 }
 
-func (w *hashWalkerWithOrig) Struct(v reflect.Value) error {
+func (w *hashWalker) Struct(v reflect.Value) error {
 	// We are looking for time values. If it isn't one, ignore it.
 	if v.Type() != hashTimeType {
 		w.cs = append(w.cs, v)
@@ -313,7 +313,7 @@ func (w *hashWalkerWithOrig) Struct(v reflect.Value) error {
 
 	if len(w.loc) < 3 {
 		// The last element of w.loc is reflectwalk.Struct, by definition.
-		// If len(w.loc) < 3 that means hashWalkerWithOrig.Walk was given a struct
+		// If len(w.loc) < 3 that means hashWalker.Walk was given a struct
 		// value and this is the very first step in the walk, and we don't
 		// currently support structs as inputs,
 		return errors.New("structs as direct inputs not supported")
@@ -348,7 +348,7 @@ func (w *hashWalkerWithOrig) Struct(v reflect.Value) error {
 	return reflectwalk.SkipEntry
 }
 
-func (w *hashWalkerWithOrig) StructField(s reflect.StructField, v reflect.Value) error {
+func (w *hashWalker) StructField(s reflect.StructField, v reflect.Value) error {
 	if !s.IsExported() {
 		return reflectwalk.SkipEntry
 	}
@@ -366,7 +366,7 @@ func (w *hashWalkerWithOrig) StructField(s reflect.StructField, v reflect.Value)
 
 // Primitive calls Callback to transform strings in-place, except for map keys.
 // Strings hiding within interfaces are also transformed.
-func (w *hashWalkerWithOrig) Primitive(v reflect.Value) error {
+func (w *hashWalker) Primitive(v reflect.Value) error {
 	if w.Callback == nil {
 		return nil
 	}
@@ -420,7 +420,7 @@ func (w *hashWalkerWithOrig) Primitive(v reflect.Value) error {
 
 }
 
-func (w *hashWalkerWithOrig) getValue() reflect.Value {
+func (w *hashWalker) getValue() reflect.Value {
 	size := len(w.cs)
 	newStruct := w.NewMap
 	for i := 0; i < size-1; i++ {
@@ -445,7 +445,7 @@ func (w *hashWalkerWithOrig) getValue() reflect.Value {
 	return newStruct
 }
 
-func (w *hashWalkerWithOrig) elided() bool {
+func (w *hashWalker) elided() bool {
 	if !w.ElideListResponseData {
 		return false
 	}
