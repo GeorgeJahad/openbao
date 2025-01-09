@@ -197,18 +197,6 @@ type HashCallback func(string) string
 var hashTimeType = reflect.TypeOf(time.Time{})
 
 func hashMapWithOrig(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
-	// for k, v := range origData {
-	// 	if o, ok := v.(logical.OptMarshaler); ok {
-	// 		marshaled, err := o.MarshalJSONWithOptions(&logical.MarshalOptions{
-	// 			ValueHasher: fn,
-	// 		})
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		data[k] = json.RawMessage(marshaled)
-	// 	}
-	// }
-
 	return HashStructureWithOrig(origData, data, fn, nonHMACDataKeys, elideListResponseData)
 }
 
@@ -296,6 +284,11 @@ func (w *hashWalkerWithOrig) MapElem(m, k, v reflect.Value) error {
 		kString := strconv.FormatInt(k.Int(), 10)
 		w.csKey = append(w.csKey, reflect.ValueOf(kString))
 		w.key = append(w.key, kString)
+		return nil
+	}
+	if _, ok := k.Interface().(time.Time); ok {
+		w.csKey = append(w.csKey, k)
+		w.key = append(w.key, k.String())
 		return nil
 	}
 	panic("bad type" + k.String())
