@@ -423,17 +423,11 @@ func (w *hashWalker) getValue() reflect.Value {
 	for i := 0; i < size-1; i++ {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
-			if _, ok := w.csKey[i].Interface().(int); ok {
-				gbjBp()
-			}
 			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
 		case reflectwalk.SliceElem:
 			index := w.csKey[i].Int()
 			newStruct = newStruct.Index(int(index)).Elem()
 		case reflectwalk.StructField:
-			if !newStruct.MapIndex(w.csKey[i]).IsValid() {
-				gbjBp()
-			}
 			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
 		default:
 			panic("invalid location")
