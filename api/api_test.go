@@ -15,7 +15,7 @@ import (
 func testHTTPServer(t *testing.T, handler http.Handler) (*Config, net.Listener) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("err: %s", err)
+		t.Fatalf("err:   %s", err)
 	}
 
 	server := &http.Server{Handler: handler}
