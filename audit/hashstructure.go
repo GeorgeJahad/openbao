@@ -4,9 +4,6 @@
 package audit
 
 import (
-	"fmt"
-)
-import (
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -87,6 +84,10 @@ func HashRequest(salter *salt.Salt, in *logical.Request, HMACAccessor bool, nonH
 	}
 
 	return &req, nil
+}
+
+func hashMap(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
+	return HashStructure(origData, data, fn, nonHMACDataKeys, elideListResponseData)
 }
 
 // HashResponse returns a hashed copy of the logical.Request input.
@@ -186,28 +187,18 @@ func HashWrapInfo(salter *salt.Salt, in *wrapping.ResponseWrapInfo, HMACAccessor
 	return &wrapinfo, nil
 }
 
-// HashCallback is the callback called for HashStructure to hash
-// a value.
-type HashCallback func(string) string
-
-// hashTimeType stores a pre-computed reflect.Type for a time.Time so
-// we can quickly compare in hashWalker.Struct. We create an empty/invalid
-// time.Time{} so we don't need to incur any additional startup cost vs.
-// Now() or Unix().
-var hashTimeType = reflect.TypeOf(time.Time{})
-
-func hashMap(fn func(string) string, origData map[string]interface{}, data map[string]interface{}, nonHMACDataKeys []string, elideListResponseData bool) error {
-	return HashStructure(origData, data, fn, nonHMACDataKeys, elideListResponseData)
-}
-
 // HashStructure takes an interface and hashes all the values within
 // the structure. Only _values_ are hashed: keys of objects are not.
 //
 // For the HashCallback, see the built-in HashCallbacks below.
-func HashStructure(o interface{}, s interface{}, cb HashCallback, ignoredKeys []string, elideListResponseData bool) error {
-	walker := &hashWalker{NewMap: reflect.ValueOf(s), Callback: cb, IgnoredKeys: ignoredKeys, ElideListResponseData: elideListResponseData}
-	return reflectwalk.Walk(o, walker)
+func HashStructure(original interface{}, copy interface{}, cb HashCallback, ignoredKeys []string, elideListResponseData bool) error {
+	walker := &hashWalker{NewMap: reflect.ValueOf(copy), Callback: cb, IgnoredKeys: ignoredKeys, ElideListResponseData: elideListResponseData}
+	return reflectwalk.Walk(original, walker)
 }
+
+// HashCallback is the callback called for HashStructure to hash
+// a value.
+type HashCallback func(string) string
 
 // hashWalker implements interfaces for the reflectwalk package
 // (github.com/mitchellh/reflectwalk) that can be used to automatically
@@ -239,6 +230,12 @@ type hashWalker struct {
 	NewMap                reflect.Value
 	ElideListResponseData bool
 }
+
+// hashTimeType stores a pre-computed reflect.Type for a time.Time so
+// we can quickly compare in hashWalker.Struct. We create an empty/invalid
+// time.Time{} so we don't need to incur any additional startup cost vs.
+// Now() or Unix().
+var hashTimeType = reflect.TypeOf(time.Time{})
 
 func (w *hashWalker) Enter(loc reflectwalk.Location) error {
 	w.loc = append(w.loc, loc)
@@ -343,8 +340,8 @@ func (w *hashWalker) Struct(v reflect.Value) error {
 		s.Slice(si, si+1).Index(0).Set(reflect.ValueOf(strVal))
 	}
 
-	// Skip this entry so that we don't walk the struct.
 	w.cs = append(w.cs, v)
+	// Skip this entry so that we don't walk the struct.
 	return reflectwalk.SkipEntry
 }
 
@@ -487,8 +484,4 @@ func (w *hashWalker) elided() bool {
 	}
 
 	return false
-}
-
-func gbjBp() {
-	fmt.Println("gbj1")
 }
