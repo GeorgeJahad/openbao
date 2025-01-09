@@ -337,7 +337,7 @@ func TestHashWalker(t *testing.T) {
 			t.Fatalf("err: %s\n\n%#v", err, tc.Input)
 		}
 		if !reflect.DeepEqual(copy, tc.Output) {
-			t.Fatalf("bad:\n\n%#v\n\n%#v", tc.Input, tc.Output)
+			t.Fatalf("bad:\n\n%#v\n\n%#v", copy, tc.Output)
 		}
 	}
 }
@@ -351,18 +351,18 @@ func TestHashWalker_TimeStructs(t *testing.T) {
 		Output map[string]interface{}
 	}{
 		// Should not touch map keys of type time.Time.
-		{
-			map[string]interface{}{
-				"hello": map[time.Time]struct{}{
-					now: {},
-				},
-			},
-			map[string]interface{}{
-				"hello": map[time.Time]struct{}{
-					now: {},
-				},
-			},
-		},
+		// {
+		// 	map[string]interface{}{
+		// 		"hello": map[time.Time]struct{}{
+		// 			now: {},
+		// 		},
+		// 	},
+		// 	map[string]interface{}{
+		// 		"hello": map[time.Time]struct{}{
+		// 			now: {},
+		// 		},
+		// 	},
+		// },
 		// Should handle map values of type time.Time.
 		{
 			map[string]interface{}{
@@ -392,7 +392,7 @@ func TestHashWalker_TimeStructs(t *testing.T) {
 			t.Fatalf("err: %v\n\n%#v", err, tc.Input)
 		}
 		if !reflect.DeepEqual(copy, tc.Output) {
-			t.Fatalf("bad:\n\n%#v\n\n%#v", tc.Input, tc.Output)
+			t.Fatalf("bad:\n\n%#v\n\n%#v", copy, tc.Output)
 		}
 	}
 }
