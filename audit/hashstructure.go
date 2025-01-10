@@ -6,6 +6,7 @@ package audit
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -341,10 +342,11 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 	setV := v
 
 	// We only care about strings
-	if v.Kind() == reflect.Interface {
-		v = v.Elem()
+	orig := w.getValue()
+	if orig.Kind() == reflect.Interface {
+		orig = orig.Elem()
 	}
-	if v.Kind() != reflect.String {
+	if orig.Kind() != reflect.String {
 		return nil
 	}
 
@@ -384,10 +386,11 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 func (w *hashWalker) getValue() reflect.Value {
 	size := len(w.cs)
 	newStruct := w.Orig
-	for i := 0; i < size-1; i++ {
+	for i := 0; i < size; i++ {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
 			if newStruct.Kind() == reflect.Struct {
+				fmt.Printf("gbjz1")
 				newField := newStruct.FieldByName(w.key[i])
 				newStruct = newField.Elem()
 			} else {
@@ -396,8 +399,6 @@ func (w *hashWalker) getValue() reflect.Value {
 		case reflectwalk.SliceElem:
 			index := w.csKey[i].Int()
 			newStruct = newStruct.Index(int(index)).Elem()
-		case reflectwalk.StructField:
-			newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
 		default:
 			panic("invalid location")
 		}
