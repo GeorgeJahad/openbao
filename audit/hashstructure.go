@@ -6,8 +6,8 @@ package audit
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -396,7 +396,6 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
 			if newValue.Kind() == reflect.Struct {
-				fmt.Printf("gbjz1\n")
 				newValue = newValue.FieldByName(getOriginalFieldName(newValue, k.String()))
 				if !newValue.IsValid() {
 					panic("bad field name: " + k.String())
@@ -405,7 +404,17 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 				if newValue.Kind() != reflect.Map {
 					panic("invalid kind/should be map: " + newValue.String())
 				}
-				newValue = newValue.MapIndex(k)
+				mk := k
+				if newValue.Type().Key().Kind() == reflect.Int {
+					if i, err := strconv.Atoi(mk.String()); err == nil {
+						mk = reflect.ValueOf(i)
+					} else {
+						panic("invalid int: " + mk.String())
+					}
+				} else if newValue.Type().Key().Kind() != reflect.String {
+					panic("invalid key: " + mk.String())
+				}
+				newValue = newValue.MapIndex(mk)
 				if !newValue.IsValid() {
 					panic("bad key name: " + k.String())
 				}
@@ -475,9 +484,6 @@ func (w *hashWalker) elided() bool {
 }
 
 func getOriginalFieldName(s reflect.Value, name string) string {
-	if name == "nonce" {
-		gbjBp()
-	}
 	t := s.Type()
 	for i := 0; i < t.NumField(); i++ {
 		tag := getJsonTag(t.Field(i))
@@ -501,7 +507,4 @@ func getJsonTag(field reflect.StructField) string {
 		}
 	}
 	return tag
-}
-
-func gbjBp() {
 }
