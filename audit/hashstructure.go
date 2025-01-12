@@ -396,15 +396,24 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 			if newStruct.Kind() == reflect.Struct {
 				fmt.Printf("gbjz1\n")
 				newStruct = newStruct.FieldByName(w.csKey[i].String())
+				if !newStruct.IsValid() {
+					panic("bad field name: " + w.csKey[i].String())
+				}
 			} else {
 				if newStruct.Kind() != reflect.Map {
 					panic("invalid kind/should be map: " + newStruct.String())
 				}
 				newStruct = newStruct.MapIndex(w.csKey[i])
+				if !newStruct.IsValid() {
+					panic("bad key name: " + w.csKey[i].String())
+				}
 			}
 		case reflectwalk.SliceElem:
 			index := w.csKey[i].Int()
 			newStruct = newStruct.Slice(int(index), int(index+1)).Index(0)
+			if !newStruct.IsValid() {
+				panic("bad index name: " + w.csKey[i].String())
+			}
 		default:
 			panic("invalid location")
 		}
