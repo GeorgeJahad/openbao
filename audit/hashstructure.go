@@ -398,7 +398,7 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 				newStruct = newStruct.FieldByName(w.key[i])
 			} else {
 				if newStruct.Kind() != reflect.Map {
-					panic("invalid kind/should be map: " + newStruct.Kind())
+					panic("invalid kind/should be map: " + newStruct.String())
 				}
 				newStruct = newStruct.MapIndex(w.csKey[i])
 			}
