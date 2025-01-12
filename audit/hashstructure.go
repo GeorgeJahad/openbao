@@ -386,7 +386,7 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 func (w *hashWalker) getValue(distance int) reflect.Value {
 	size := len(w.cs) - distance
 	newStruct := w.Orig
-	if newStruct.Kind() == reflect.Ptr ||
+	for newStruct.Kind() == reflect.Ptr ||
 		newStruct.Kind() == reflect.Interface {
 		newStruct = newStruct.Elem()
 	}
@@ -395,7 +395,7 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 		case reflectwalk.MapValue:
 			if newStruct.Kind() == reflect.Struct {
 				fmt.Printf("gbjz1\n")
-				newStruct = newStruct.FieldByName(w.key[i])
+				newStruct = newStruct.FieldByName(w.csKey[i].String())
 			} else {
 				if newStruct.Kind() != reflect.Map {
 					panic("invalid kind/should be map: " + newStruct.String())
@@ -408,7 +408,7 @@ func (w *hashWalker) getValue(distance int) reflect.Value {
 		default:
 			panic("invalid location")
 		}
-		if newStruct.Kind() == reflect.Ptr ||
+		for newStruct.Kind() == reflect.Ptr ||
 			newStruct.Kind() == reflect.Interface {
 			newStruct = newStruct.Elem()
 		}
