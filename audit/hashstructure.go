@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-secure-stdlib/strutil"
@@ -385,44 +386,45 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 
 func (w *hashWalker) getValue(distance int) reflect.Value {
 	size := len(w.cs) - distance
-	newStruct := w.Orig
-	for newStruct.Kind() == reflect.Ptr ||
-		newStruct.Kind() == reflect.Interface {
-		newStruct = newStruct.Elem()
+	newValue := w.Orig
+	for newValue.Kind() == reflect.Ptr ||
+		newValue.Kind() == reflect.Interface {
+		newValue = newValue.Elem()
 	}
 	for i := 0; i < size; i++ {
+		k := w.csKey[i]
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
-			if newStruct.Kind() == reflect.Struct {
+			if newValue.Kind() == reflect.Struct {
 				fmt.Printf("gbjz1\n")
-				newStruct = newStruct.FieldByName(w.csKey[i].String())
-				if !newStruct.IsValid() {
-					panic("bad field name: " + w.csKey[i].String())
+				newValue = newValue.FieldByName(getOriginalFieldName(newValue, k.String()))
+				if !newValue.IsValid() {
+					panic("bad field name: " + k.String())
 				}
 			} else {
-				if newStruct.Kind() != reflect.Map {
-					panic("invalid kind/should be map: " + newStruct.String())
+				if newValue.Kind() != reflect.Map {
+					panic("invalid kind/should be map: " + newValue.String())
 				}
-				newStruct = newStruct.MapIndex(w.csKey[i])
-				if !newStruct.IsValid() {
-					panic("bad key name: " + w.csKey[i].String())
+				newValue = newValue.MapIndex(k)
+				if !newValue.IsValid() {
+					panic("bad key name: " + k.String())
 				}
 			}
 		case reflectwalk.SliceElem:
-			index := w.csKey[i].Int()
-			newStruct = newStruct.Slice(int(index), int(index+1)).Index(0)
-			if !newStruct.IsValid() {
-				panic("bad index name: " + w.csKey[i].String())
+			index := k.Int()
+			newValue = newValue.Slice(int(index), int(index+1)).Index(0)
+			if !newValue.IsValid() {
+				panic("bad index name: " + k.String())
 			}
 		default:
 			panic("invalid location")
 		}
-		for newStruct.Kind() == reflect.Ptr ||
-			newStruct.Kind() == reflect.Interface {
-			newStruct = newStruct.Elem()
+		for newValue.Kind() == reflect.Ptr ||
+			newValue.Kind() == reflect.Interface {
+			newValue = newValue.Elem()
 		}
 	}
-	return newStruct
+	return newValue
 }
 
 func (w *hashWalker) elided() bool {
@@ -470,6 +472,35 @@ func (w *hashWalker) elided() bool {
 	}
 
 	return false
+}
+
+func getOriginalFieldName(s reflect.Value, name string) string {
+	if name == "nonce" {
+		gbjBp()
+	}
+	t := s.Type()
+	for i := 0; i < t.NumField(); i++ {
+		tag := getJsonTag(t.Field(i))
+		if tag == name {
+			return t.Field(i).Name
+		}
+		if t.Field(i).Name == name {
+			return name
+		}
+	}
+	panic("Field name not found in original: " + name)
+	return ""
+}
+
+func getJsonTag(field reflect.StructField) string {
+	tag := ""
+	if tag = field.Tag.Get("json"); tag != "" {
+		parts := strings.Split(tag, ",")
+		if parts[0] != "" {
+			tag = parts[0]
+		}
+	}
+	return tag
 }
 
 func gbjBp() {
