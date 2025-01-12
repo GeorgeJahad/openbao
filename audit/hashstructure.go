@@ -283,7 +283,7 @@ func (w *hashWalker) SliceElem(i int, elem reflect.Value) error {
 
 func (w *hashWalker) Struct(v reflect.Value) error {
 	// We are looking for time values. If it isn't one, ignore it.
-	if w.getValue().Type() != hashTimeType {
+	if w.getValue(0).Type() != hashTimeType {
 		return nil
 	}
 
@@ -301,7 +301,7 @@ func (w *hashWalker) Struct(v reflect.Value) error {
 		// Create a string value of the time. IMPORTANT: this must never change
 		// across Vault versions or the hash value of equivalent time.Time will
 		// change.
-		strVal := w.getValue().Interface().(time.Time).Format(time.RFC3339Nano)
+		strVal := w.getValue(0).Interface().(time.Time).Format(time.RFC3339Nano)
 
 		// Set the map value to the string instead of the time.Time object
 		m := w.cs[len(w.cs)-1]
@@ -311,7 +311,7 @@ func (w *hashWalker) Struct(v reflect.Value) error {
 		// Create a string value of the time. IMPORTANT: this must never change
 		// across Vault versions or the hash value of equivalent time.Time will
 		// change.
-		strVal := w.getValue().Interface().(time.Time).Format(time.RFC3339Nano)
+		strVal := w.getValue(0).Interface().(time.Time).Format(time.RFC3339Nano)
 
 		// Set the map value to the string instead of the time.Time object
 		s := w.cs[len(w.cs)-1]
@@ -342,7 +342,7 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 	setV := v
 
 	// We only care about strings
-	orig := w.getValue()
+	orig := w.getValue(0)
 	if orig.Kind() == reflect.Interface {
 		orig = orig.Elem()
 	}
@@ -360,7 +360,7 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 		return nil
 	}
 
-	replaceVal := w.Callback(w.getValue().String())
+	replaceVal := w.Callback(w.getValue(0).String())
 
 	resultVal := reflect.ValueOf(replaceVal)
 	switch w.loc[len(w.loc)-1] {
@@ -383,24 +383,34 @@ func (w *hashWalker) Primitive(v reflect.Value) error {
 
 }
 
-func (w *hashWalker) getValue() reflect.Value {
-	size := len(w.cs)
+func (w *hashWalker) getValue(distance int) reflect.Value {
+	size := len(w.cs) - distance
 	newStruct := w.Orig
+	if newStruct.Kind() == reflect.Ptr ||
+		newStruct.Kind() == reflect.Interface {
+		newStruct = newStruct.Elem()
+	}
 	for i := 0; i < size; i++ {
 		switch w.loc[2+2*i] {
 		case reflectwalk.MapValue:
 			if newStruct.Kind() == reflect.Struct {
-				fmt.Printf("gbjz1")
-				newField := newStruct.FieldByName(w.key[i])
-				newStruct = newField.Elem()
+				fmt.Printf("gbjz1\n")
+				newStruct = newStruct.FieldByName(w.key[i])
 			} else {
-				newStruct = newStruct.MapIndex(w.csKey[i]).Elem()
+				if newStruct.Kind() != reflect.Map {
+					gbjBp()
+				}
+				newStruct = newStruct.MapIndex(w.csKey[i])
 			}
 		case reflectwalk.SliceElem:
 			index := w.csKey[i].Int()
-			newStruct = newStruct.Index(int(index)).Elem()
+			newStruct = newStruct.Slice(int(index), int(index+1)).Index(int(index))
 		default:
 			panic("invalid location")
+		}
+		if newStruct.Kind() == reflect.Ptr ||
+			newStruct.Kind() == reflect.Interface {
+			newStruct = newStruct.Elem()
 		}
 	}
 	return newStruct
@@ -412,7 +422,6 @@ func (w *hashWalker) elided() bool {
 	}
 
 	currentLoc := len(w.loc) - 1
-	currentCs := len(w.cs) - 1
 	currentCsKey := len(w.csKey) - 1
 
 	if currentLoc <= 3 {
@@ -424,7 +433,10 @@ func (w *hashWalker) elided() bool {
 		return false
 	}
 
-	m := w.cs[currentCs-1]
+	m := w.getValue(2)
+	if m.Kind() != reflect.Map {
+		return false
+	}
 	mk := w.csKey[currentCsKey-1]
 	k := mk.String()
 	v := m.MapIndex(mk)
@@ -440,6 +452,7 @@ func (w *hashWalker) elided() bool {
 
 	if w.loc[currentLoc-1] == reflectwalk.Map &&
 		w.loc[currentLoc] == reflectwalk.MapValue &&
+		v.Kind() == reflect.Map &&
 		k == "key_info" {
 		_, vOk := v.Interface().(map[string]interface{})
 		if vOk {
@@ -448,4 +461,7 @@ func (w *hashWalker) elided() bool {
 	}
 
 	return false
+}
+
+func gbjBp() {
 }
